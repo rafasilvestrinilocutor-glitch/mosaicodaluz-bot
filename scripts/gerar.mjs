@@ -21,7 +21,9 @@ const TEMPLATE = join(RAIZ, "template");
 
 // Mesma conta do site (js/app.js): dias desde 1970-01-01, usando a data CIVIL
 // do Brasil — assim o slide mostra exatamente a frase que o site mostra hoje.
-export function dayNumber(quando = new Date()) {
+export const AGORA = new Date();
+
+export function dayNumber(quando = AGORA) {
   const f = new Intl.DateTimeFormat("en-CA", {
     timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit",
   });
@@ -128,7 +130,7 @@ function paginaHTML({ cor, simboloFundo, conteudo, css = "", script = "" }) {
 <script>${script}<\/script></body></html>`;
 }
 
-function slideCapa({ grupo, dataTexto, quantas }) {
+export function slideCapa({ grupo, dataTexto, quantas }) {
   const conteudo = `
   <div class="topo">${simbolo("mosaic")}<span>Mosaico da Luz</span></div>
   <div class="centro">
@@ -153,7 +155,7 @@ function slideCapa({ grupo, dataTexto, quantas }) {
   return paginaHTML({ cor: "#c9a24a", simboloFundo: "mosaic", conteudo, css });
 }
 
-function slideFrase({ rel, frase, pagina, total }) {
+export function slideFrase({ rel, frase, pagina, total }) {
   const conteudo = `
   <div class="topo">${simbolo("mosaic")}<span>Mosaico da Luz</span></div>
   <div class="centro">
@@ -189,7 +191,7 @@ function slideFrase({ rel, frase, pagina, total }) {
   return paginaHTML({ cor: rel.theme.primary, simboloFundo: rel.symbol, conteudo, css, script });
 }
 
-function slideFinal({ pagina, total }) {
+export function slideFinal({ pagina, total }) {
   const conteudo = `
   <div class="topo">${simbolo("mosaic")}<span>Mosaico da Luz</span></div>
   <div class="centro">
@@ -228,7 +230,7 @@ function acharChrome() {
 
 const CHROME = acharChrome();
 
-function renderizar(html, destinoPNG, tmpHTML) {
+export function renderizar(html, destinoPNG, tmpHTML) {
   writeFileSync(tmpHTML, html);
   execFileSync(CHROME, [
     "--headless=new", "--disable-gpu", "--hide-scrollbars", "--no-sandbox",
@@ -242,7 +244,7 @@ function renderizar(html, destinoPNG, tmpHTML) {
 }
 
 // A API do Instagram só aceita JPEG — converte com o que existir na máquina.
-function paraJPEG(png, jpg) {
+export function paraJPEG(png, jpg) {
   const tentativas = [
     ["magick", [png, "-quality", "92", "-strip", jpg]],
     ["convert", [png, "-quality", "92", "-strip", jpg]],
@@ -280,6 +282,8 @@ function montarLegenda({ grupo, dataTexto, itens }) {
 
 /* --------------------------------------------------------------------- main */
 
+export async function baixarDados(arquivo){ return baixarJSON(arquivo); }
+
 async function main() {
   const nomeGrupo = process.argv[2];
   const grupo = GRUPOS[nomeGrupo];
@@ -304,7 +308,7 @@ async function main() {
     const rel = porId[id];
     if (!rel) throw new Error(`Tradição "${id}" não existe em religions.json`);
     const dados = await baixarJSON(`${id}.json`);
-    const frases = Array.isArray(dados) ? dados : dados.phrases || [];
+    const frases = Array.isArray(dados) ? dados : (dados && dados.phrases) || [];
     const frase = frases[indiceDoDia(frases.length, offset)];
     if (!frase || !frase.text) throw new Error(`Sem frase para ${id}`);
     itens.push({ rel, frase });
@@ -339,4 +343,5 @@ async function main() {
   console.log(`\n${arquivos.length} imagens em out/${dia}/${nomeGrupo}`);
 }
 
-main().catch((e) => { console.error("ERRO:", e.message); process.exit(1); });
+const chamadoDireto = process.argv[1] && process.argv[1].endsWith("gerar.mjs");
+if (chamadoDireto) main().catch((e) => { console.error("ERRO:", e.message); process.exit(1); });
