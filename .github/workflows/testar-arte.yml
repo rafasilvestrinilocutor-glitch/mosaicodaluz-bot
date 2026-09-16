@@ -1,0 +1,30 @@
+name: Testar a arte (sem postar)
+
+# Gera os três carrosséis do dia e anexa as imagens ao resultado,
+# para conferir o visual sem publicar nada no Instagram.
+on:
+  workflow_dispatch:
+
+jobs:
+  testar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Garantir Chrome e ImageMagick
+        run: |
+          if ! command -v google-chrome >/dev/null && ! command -v google-chrome-stable >/dev/null; then
+            wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+            sudo apt-get install -y ./google-chrome-stable_current_amd64.deb
+          fi
+          command -v convert >/dev/null || sudo apt-get install -y imagemagick
+      - run: node scripts/gerar.mjs manha
+      - run: node scripts/gerar.mjs meiodia
+      - run: node scripts/gerar.mjs noite
+      - uses: actions/upload-artifact@v4
+        with:
+          name: artes-do-dia
+          path: out/
+          retention-days: 14

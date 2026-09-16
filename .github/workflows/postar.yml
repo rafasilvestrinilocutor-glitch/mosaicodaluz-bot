@@ -1,0 +1,97 @@
+name: Postar no Instagram
+
+on:
+  schedule:
+    # Horários em UTC (Brasília = UTC-3). 07h / 12h / 19h de Brasília.
+    - cron: "0 10 * * *"   # 07h — abraâmicas e espíritas
+    - cron: "0 15 * * *"   # 12h — orientais
+    - cron: "0 22 * * *"   # 19h — brasileiras e da natureza
+  workflow_dispatch:
+    inputs:
+      grupo:
+        description: "Qual carrossel publicar agora"
+        required: true
+        default: manha
+        type: choice
+        options: [manha, meiodia, noite]
+      ensaio:
+        description: "Só ensaiar (gera as imagens e NÃO posta)"
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: postar
+  cancel-in-progress: false
+
+jobs:
+  postar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Descobrir qual grupo é a vez
+        id: grupo
+        env:
+          CRON: ${{ github.event.schedule }}
+          MANUAL: ${{ inputs.grupo }}
+        run: |
+          if [ -n "$MANUAL" ]; then G="$MANUAL";
+          elif [ "$CRON" = "0 10 * * *" ]; then G=manha;
+          elif [ "$CRON" = "0 15 * * *" ]; then G=meiodia;
+          else G=noite; fi
+          echo "grupo=$G" >> "$GITHUB_OUTPUT"
+          echo "Grupo da vez: $G"
+
+      - name: Garantir Chrome e ImageMagick
+        run: |
+          if ! command -v google-chrome >/dev/null && ! command -v google-chrome-stable >/dev/null; then
+            wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+            sudo apt-get install -y ./google-chrome-stable_current_amd64.deb
+          fi
+          command -v convert >/dev/null || sudo apt-get install -y imagemagick
+          (command -v google-chrome || command -v google-chrome-stable) && convert -version | head -1
+
+      - name: Gerar as imagens e a legenda
+        run: node scripts/gerar.mjs "${{ steps.grupo.outputs.grupo }}"
+
+      - name: Publicar as imagens num endereço público (branch cdn)
+        id: cdn
+        env:
+          GRUPO: ${{ steps.grupo.outputs.grupo }}
+        run: |
+          DIA=$(ls out | tail -1)
+          echo "dia=$DIA" >> "$GITHUB_OUTPUT"
+          rm -rf .cdn && mkdir -p ".cdn/$DIA/$GRUPO"
+          cp "out/$DIA/$GRUPO/"*.jpg ".cdn/$DIA/$GRUPO/"
+          cd .cdn
+          git init -q
+          git checkout -q -b cdn
+          git add .
+          git -c user.email=bot@mosaicodaluz -c user.name="Mosaico da Luz (robô)" \
+              commit -qm "imagens $DIA $GRUPO"
+          git push -q --force \
+            "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" cdn
+
+      - name: Publicar o carrossel no Instagram
+        env:
+          IG_TOKEN: ${{ secrets.IG_TOKEN }}
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          BASE_URL: https://raw.githubusercontent.com/${{ github.repository }}/cdn
+          DRY_RUN: ${{ (inputs.ensaio == true) && '1' || '0' }}
+        run: node scripts/publicar.mjs "out/${{ steps.cdn.outputs.dia }}/${{ steps.grupo.outputs.grupo }}"
+
+      - name: Guardar as artes como anexo (para conferir)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: carrossel-${{ steps.grupo.outputs.grupo }}
+          path: out/
+          retention-days: 7

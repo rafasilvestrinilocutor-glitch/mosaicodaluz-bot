@@ -1,0 +1,43 @@
+name: Renovar token do Instagram
+
+# O token do Instagram dura 60 dias. Renovando todo dia, ele nunca vence.
+# Precisa do segredo GH_PAT (token pessoal do GitHub com permissão de
+# "Secrets: read and write") para conseguir reescrever o segredo IG_TOKEN.
+on:
+  schedule:
+    - cron: "30 6 * * *"   # 03h30 de Brasília
+  workflow_dispatch:
+
+jobs:
+  renovar:
+    runs-on: ubuntu-latest
+    env:
+      TEM_PAT: ${{ secrets.GH_PAT != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Pedir token novo à Meta
+        env:
+          IG_TOKEN: ${{ secrets.IG_TOKEN }}
+        run: node scripts/renovar-token.mjs token-novo.txt
+
+      - name: Guardar o token novo no segredo IG_TOKEN
+        if: env.TEM_PAT == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          gh secret set IG_TOKEN --repo "${{ github.repository }}" < token-novo.txt
+          echo "Segredo IG_TOKEN atualizado."
+
+      - name: Avisar se não há GH_PAT
+        if: env.TEM_PAT != 'true'
+        run: |
+          echo "::warning::Sem o segredo GH_PAT eu não consigo salvar o token renovado."
+          echo "::warning::Gere um token novo no painel da Meta antes de 60 dias, ou crie o GH_PAT."
+
+      - name: Apagar o arquivo do token
+        if: always()
+        run: rm -f token-novo.txt
