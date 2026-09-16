@@ -79,7 +79,11 @@ async function main() {
     console.log("\n[ENSAIO] Legenda:\n" + meta.legenda);
     return;
   }
-  if (!TOKEN || !IG_USER_ID) throw new Error("Faltam os segredos IG_TOKEN e/ou IG_USER_ID.");
+  if (!TOKEN || !IG_USER_ID) {
+    console.log("\n⏸️  Conta ainda não conectada (falta o segredo IG_TOKEN e/ou IG_USER_ID).");
+    console.log("   As imagens foram geradas, mas não vou postar. Veja o README, passos 1 a 5.");
+    return;
+  }
   if (!BASE_URL) throw new Error("Falta BASE_URL (endereço público das imagens).");
 
   for (const u of urls) await esperarImagemNoAr(u);

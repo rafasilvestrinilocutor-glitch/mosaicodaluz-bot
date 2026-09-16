@@ -30,15 +30,25 @@ concurrency:
 jobs:
   postar:
     runs-on: ubuntu-latest
+    env:
+      # Enquanto a conta não estiver conectada, os horários automáticos não fazem nada.
+      LIGADO: ${{ (secrets.IG_TOKEN != '' && secrets.IG_USER_ID != '') || github.event_name == 'workflow_dispatch' }}
     steps:
+      - name: Aviso quando ainda não está conectado
+        if: env.LIGADO != 'true'
+        run: echo "::notice::Conta do Instagram ainda não conectada (faltam IG_TOKEN/IG_USER_ID). Nada a fazer."
+
       - uses: actions/checkout@v4
+        if: env.LIGADO == 'true'
 
       - uses: actions/setup-node@v4
+        if: env.LIGADO == 'true'
         with:
           node-version: "20"
 
       - name: Descobrir qual grupo é a vez
         id: grupo
+        if: env.LIGADO == 'true'
         env:
           CRON: ${{ github.event.schedule }}
           MANUAL: ${{ inputs.grupo }}
@@ -51,6 +61,7 @@ jobs:
           echo "Grupo da vez: $G"
 
       - name: Garantir Chrome e ImageMagick
+        if: env.LIGADO == 'true'
         run: |
           if ! command -v google-chrome >/dev/null && ! command -v google-chrome-stable >/dev/null; then
             wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
@@ -60,9 +71,11 @@ jobs:
           (command -v google-chrome || command -v google-chrome-stable) && convert -version | head -1
 
       - name: Gerar as imagens e a legenda
+        if: env.LIGADO == 'true'
         run: node scripts/gerar.mjs "${{ steps.grupo.outputs.grupo }}"
 
       - name: Publicar as imagens num endereço público (branch cdn)
+        if: env.LIGADO == 'true'
         id: cdn
         env:
           GRUPO: ${{ steps.grupo.outputs.grupo }}
@@ -81,6 +94,7 @@ jobs:
             "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" cdn
 
       - name: Publicar o carrossel no Instagram
+        if: env.LIGADO == 'true'
         env:
           IG_TOKEN: ${{ secrets.IG_TOKEN }}
           IG_USER_ID: ${{ secrets.IG_USER_ID }}
@@ -89,7 +103,7 @@ jobs:
         run: node scripts/publicar.mjs "out/${{ steps.cdn.outputs.dia }}/${{ steps.grupo.outputs.grupo }}"
 
       - name: Guardar as artes como anexo (para conferir)
-        if: always()
+        if: always() && env.LIGADO == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: carrossel-${{ steps.grupo.outputs.grupo }}

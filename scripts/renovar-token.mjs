@@ -4,7 +4,10 @@
 const API = process.env.IG_API_BASE || "https://graph.instagram.com";
 const TOKEN = process.env.IG_TOKEN;
 const saida = process.argv[2];
-if (!TOKEN) { console.error("Defina IG_TOKEN."); process.exit(1); }
+if (!TOKEN) {
+  console.log("⏸️  Ainda não existe o segredo IG_TOKEN — nada para renovar. (Veja o README.)");
+  process.exit(0);
+}
 
 const url = new URL(`${API}/refresh_access_token`);
 url.search = new URLSearchParams({
